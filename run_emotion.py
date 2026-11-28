@@ -26,8 +26,13 @@ class EmotiEffLibModel:
         self.mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         self.std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
         self.classes = {
-            0: "Anger", 1: "Contempt", 2: "Disgust", 3: "Fear",
-            4: "Happiness", 5: "Neutral", 6: "Sadness", 7: "Surprise"
+            0: "Happy",
+            1: "Neutral",
+            2: "Surprised",
+            3: "Sad",
+            4: "Confused",
+            5: "Angry",
+            6: "Tired"
         }
 
         model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enet_b0_8_va_mtl.onnx")
@@ -54,10 +59,49 @@ class EmotiEffLibModel:
         x = (x - self.mean) / self.std
         tensor = x.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
 
-        raw_output = self.session.run(None, {self.input_name: tensor})[0]
-        logits = raw_output[0][:8]
+        raw_output = self.session.run(None, {self.input_name: tensor})[0][0]
+        logits = raw_output[:8]
+        v = float(raw_output[8])
+        a = float(raw_output[9])
+
         exp_logits = np.exp(logits - np.max(logits))
-        probs = exp_logits / np.sum(exp_logits)
+        p8 = exp_logits / np.sum(exp_logits)
+        p_ang, p_con, p_dis, p_fea, p_hap, p_neu, p_sad, p_sur = (
+            p8[0], p8[1], p8[2], p8[3],
+            p8[4], p8[5], p8[6], p8[7]
+        )
+
+        gate_non_pos = max(0.0, min(1.0, (0.20 - v) / 0.30))
+        gate_not_happy = max(0.0, min(1.0, (0.25 - p_hap) / 0.25))
+        non_happy_factor = gate_non_pos * gate_not_happy
+        happy_factor = 1.0 - non_happy_factor
+
+        happy_extra = (p_con + p_dis) * happy_factor
+        conflict_mix = 2.0 * np.sqrt(p_sur * (p_ang + p_sad + p_fea + p_dis * non_happy_factor))
+        confused_score = (p_con * 0.90 + conflict_mix * 0.60 + p_fea * 0.30) * non_happy_factor
+
+        hypo_arousal = max(0.0, -a)
+        arousal_weight = min(1.0, hypo_arousal * 1.5)
+        tired_score = arousal_weight * (p_neu * 0.85 + p_sad * 0.75) * non_happy_factor
+
+        hap_adj = p_hap + happy_extra
+        neu_adj = max(0.0, p_neu - tired_score * 0.85)
+        sur_adj = max(0.0, p_sur - (conflict_mix * 0.30 * non_happy_factor))
+        sad_adj = max(0.0, p_sad - tired_score * 0.40)
+        ang_adj = p_ang + (p_dis * 0.60 if v < 0.0 else 0.0)
+
+        raw_7 = np.array([
+            hap_adj,
+            neu_adj,
+            sur_adj,
+            sad_adj,
+            confused_score,
+            ang_adj,
+            tired_score
+        ], dtype=np.float64)
+
+        s = np.sum(raw_7)
+        probs = raw_7 / s if s > 1e-9 else np.ones(7, dtype=np.float64) / 7.0
         dominant = self.classes[int(np.argmax(probs))]
         return dominant, probs
 
@@ -191,7 +235,7 @@ def run():
 
     print("\nEMOTION PROBABILITIES (Aggregated Across Frames):")
     print("-" * 60)
-    for i in range(8):
+    for i in range(7):
         name = model.classes[i]
         pct = mean_probs[i] * 100.0
         bar = "█" * int(round(pct / 4.0))

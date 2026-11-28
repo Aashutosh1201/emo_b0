@@ -6,6 +6,20 @@ The pretrained model file (`enet_b0_8_va_mtl.onnx`, 16 MB) is bundled directly i
 
 ---
 
+## 7 Target Emotions (100% Shared Probability Distribution)
+
+The system predicts a unified probability distribution across 7 distinct emotions that sum to exactly **100%**:
+
+1. **Happy**
+2. **Neutral**
+3. **Surprised**
+4. **Sad**
+5. **Confused** *(Rule-based affective modeling: integrates brow furrow / perplexity conflict and skepticism)*
+6. **Angry**
+7. **Tired** *(Rule-based affective modeling: integrates low arousal / hypo-arousal and facial drooping)*
+
+---
+
 ## Instructions for Running
 
 ### Step 1: Clone or Download
@@ -47,5 +61,5 @@ python run_emotion.py
 The script will:
 1. Detect and allocate all available CPU cores on your machine.
 2. Load the bundled `enet_b0_8_va_mtl.onnx` weights directly from this folder.
-3. Detect faces across video frames and predict emotion probabilities (`Anger`, `Contempt`, `Disgust`, `Fear`, `Happiness`, `Neutral`, `Sadness`, `Surprise`).
+3. Detect faces across video frames and calculate the 7-emotion probability distribution (**Happy, Neutral, Surprised, Sad, Confused, Angry, Tired**).
 4. Output the dominant emotion, most frequent frame emotion, and detailed processing times.
