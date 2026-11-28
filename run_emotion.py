@@ -17,7 +17,7 @@ import urllib.request
 from collections import Counter
 
 # Enter the path to your video file below:
-VIDEO_PATH = r"rej_happy.mp4"
+VIDEO_PATH = r"rej1.mp4"
 
 
 class EmotiEffLibModel:
